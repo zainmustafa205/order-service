@@ -1,9 +1,13 @@
 package com.ecommerce.order_service.service;
 
+import com.ecommerce.order_service.client.PaymentClient;
+import com.ecommerce.order_service.client.PaymentInitiateRequest;
+import com.ecommerce.order_service.client.PaymentResponse;
 import com.ecommerce.order_service.client.ProductClient;
 import com.ecommerce.order_service.client.ProductClientResponse;
 import com.ecommerce.order_service.client.UserClient;
 import com.ecommerce.order_service.client.UserClientResponse;
+import com.ecommerce.order_service.dto.request.PayOrderRequest;
 import com.ecommerce.order_service.dto.response.OrderItemResponse;
 import com.ecommerce.order_service.dto.response.OrderResponse;
 import com.ecommerce.order_service.entity.Cart;
@@ -12,7 +16,9 @@ import com.ecommerce.order_service.entity.Order;
 import com.ecommerce.order_service.entity.OrderItem;
 import com.ecommerce.order_service.entity.OrderStatus;
 import com.ecommerce.order_service.exception.InsufficientStockException;
+import com.ecommerce.order_service.exception.InvalidOrderStateException;
 import com.ecommerce.order_service.exception.ResourceNotFoundException;
+import com.ecommerce.order_service.exception.UnauthorizedOrderAccessException;
 import com.ecommerce.order_service.repository.CartRepository;
 import com.ecommerce.order_service.repository.OrderRepository;
 import org.springframework.stereotype.Service;
@@ -21,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,13 +37,16 @@ public class OrderService {
     private final CartRepository cartRepository;
     private final ProductClient productClient;
     private final UserClient userClient;
+    private final PaymentClient paymentClient;
 
     public OrderService(OrderRepository orderRepository, CartRepository cartRepository,
-                         ProductClient productClient, UserClient userClient) {
+                         ProductClient productClient, UserClient userClient,
+                         PaymentClient paymentClient) {
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
         this.productClient = productClient;
         this.userClient = userClient;
+        this.paymentClient = paymentClient;
     }
 
     @Transactional
@@ -170,5 +180,34 @@ public class OrderService {
                 itemResponses,
                 order.getCreatedAt()
         );
+    }
+
+    public PaymentResponse payForOrder(Long orderId, Long userId, PayOrderRequest request) {
+
+        Order order = orderRepository.findById(orderId)
+              .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+
+        if (!order.getUserId().equals(userId)) {
+              throw new UnauthorizedOrderAccessException("You are not authorized to pay for this order");
+        }
+
+        if (order.getStatus() != OrderStatus.PAYMENT_PENDING) {
+            throw new InvalidOrderStateException(
+                "Order is not awaiting payment (current status: " + order.getStatus() + ")"
+            );
+        }
+    
+        String idempotencyKey = "order-" + orderId + "-" + UUID.randomUUID();
+
+        PaymentInitiateRequest paymentRequest = new PaymentInitiateRequest(
+            order.getId(),
+            userId,
+            order.getTotalAmount(),
+            "PKR",
+            request.getPaymentMethod(),
+            idempotencyKey
+        );
+
+        return paymentClient.initiatePayment(paymentRequest);
     }
 }
