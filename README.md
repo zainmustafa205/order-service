@@ -6,7 +6,7 @@ Order and cart management microservice for the E-Commerce Microservices system �
 
 ## 📖 Overview
 
-`order-service` is one of five microservices in a larger e-commerce system. It owns the **order and cart domain** — managing a customer's cart, converting that cart into an immutable order at checkout, coordinating stock updates with `product-service`, verifying customer identity against `user-service`, and initiating payments through `payment-service`. It is the most interconnected service in the system, communicating synchronously with three other microservices via OpenFeign.
+`order-service` is one of Six microservices in a larger e-commerce system. It owns the **order and cart domain** — managing a customer's cart, converting that cart into an immutable order at checkout, coordinating stock updates with `product-service`, verifying customer identity against `user-service`, and initiating payments through `payment-service`. It is the most interconnected service in the system, communicating synchronously with three other microservices via OpenFeign.
 
 > This service is part of a larger system. See the [main project README](#) for the full architecture and links to all repositories.
 
